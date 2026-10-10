@@ -57,6 +57,7 @@ export async function collectArticles() {
       rows.push({
         url: item.url,
         source: source.id,
+        author: item.author,
         titleEn: item.titleEn,
         contentEn: item.contentEn,
         publishedAt: item.publishedAt,

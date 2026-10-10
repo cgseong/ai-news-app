@@ -8,6 +8,13 @@
       "when": 1791612105324,
       "tag": "0000_large_sleeper",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791615517469,
+      "tag": "0001_zippy_corsair",
+      "breakpoints": true
     }
   ]
 }

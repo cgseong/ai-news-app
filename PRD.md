@@ -243,6 +243,7 @@ Neon(PostgreSQL) + Drizzle ORM.
 | `id` | serial PK | |
 | `url` | text UNIQUE NOT NULL | **중복 수집 차단 키** |
 | `source` | text NOT NULL | `techcrunch` / `theverge` |
+| `author` | text | 원문 작성자. RSS `dc:creator` / Atom `author.name`, 공동 집필이면 쉼표로 이어 붙인다. 피드에 없으면 NULL |
 | `title_en` | text NOT NULL | |
 | `content_en` | text | RSS 본문 원문 |
 | `published_at` | timestamptz | |

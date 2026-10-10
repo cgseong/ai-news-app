@@ -27,6 +27,8 @@ export const articles = pgTable(
     /** Dedup key across runs. */
     url: text("url").notNull().unique(),
     source: text("source").notNull(),
+    /** Byline as the feed gives it — may be several names, or absent. */
+    author: text("author"),
     titleEn: text("title_en").notNull(),
     contentEn: text("content_en"),
     publishedAt: timestamp("published_at", { withTimezone: true }),

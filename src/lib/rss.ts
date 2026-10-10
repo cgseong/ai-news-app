@@ -5,6 +5,7 @@ import { ITEMS_PER_FEED, type Source } from "./sources";
 export type FeedItem = {
   url: string;
   titleEn: string;
+  author: string | null;
   contentEn: string | null;
   publishedAt: Date | null;
   imageUrl: string | null;
@@ -31,6 +32,26 @@ function text(value: unknown): string | null {
     return text((value as Record<string, unknown>)["#text"]);
   }
   return null;
+}
+
+/**
+ * Bylines: TechCrunch (RSS) puts them in <dc:creator>, The Verge (Atom) in
+ * <author><name>. Either tag can repeat, and a single TechCrunch creator can
+ * already hold several comma-separated names, so flatten everything to one
+ * string and let the card print it verbatim.
+ */
+function authorNames(raw: unknown): string | null {
+  const values = Array.isArray(raw) ? raw : [raw];
+  const names = values.flatMap((value) => {
+    if (value && typeof value === "object" && "name" in (value as AnyRecord)) {
+      // Atom: <author><name>Emma Roth</name></author>
+      return [text((value as AnyRecord).name)];
+    }
+    return [text(value)];
+  });
+
+  const joined = names.filter((n): n is string => Boolean(n)).join(", ");
+  return joined || null;
 }
 
 function stripHtml(html: string | null): string | null {
@@ -84,6 +105,7 @@ function rssItems(channel: AnyRecord): FeedItem[] {
       {
         url,
         titleEn,
+        author: authorNames(item["dc:creator"] ?? item.author),
         contentEn: stripHtml(body),
         publishedAt: parseDate(text(item.pubDate)),
         imageUrl:
@@ -116,6 +138,7 @@ function atomEntries(feed: AnyRecord): FeedItem[] {
       {
         url,
         titleEn,
+        author: authorNames(entry.author),
         contentEn: stripHtml(body),
         publishedAt: parseDate(text(entry.published) ?? text(entry.updated)),
         imageUrl: firstImage(body),

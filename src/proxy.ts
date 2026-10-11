@@ -2,7 +2,8 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
 // Next.js 16 renamed middleware to proxy. With a src/ directory this file must
 // live at src/proxy.ts — at the repo root it is silently ignored.
-const isPublicRoute = createRouteMatcher(["/sign-in(.*)"]);
+// /preview is the design preview: fixtures only, so it needs no session.
+const isPublicRoute = createRouteMatcher(["/sign-in(.*)", "/preview"]);
 const isApiRoute = createRouteMatcher(["/api/(.*)"]);
 
 export default clerkMiddleware(async (auth, request) => {

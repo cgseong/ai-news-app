@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { ArticleCard } from "@/components/ArticleCard";
+import { CategoryTabs, FeedToolbar } from "@/components/FeedChrome";
 import type { CategoryRow, FeedArticle } from "@/lib/types";
 
 const POLL_INTERVAL_MS = 3000;
@@ -160,49 +161,33 @@ export function Feed() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">AI 뉴스</h1>
-          <p className="mt-1 text-sm text-muted">
-            {pending > 0 ? `${pending}건 요약 중…` : `${totalArticles}건 보관 중`}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={collect}
-          disabled={collecting}
-          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
-          {collecting ? "가져오는 중…" : "뉴스 가져오기"}
-        </button>
-      </div>
+    <div className="flex flex-col gap-7">
+      <FeedToolbar
+        subtitle={pending > 0 ? `${pending}건 요약 중…` : `${totalArticles}건 보관 중`}
+        collecting={collecting}
+        onCollect={collect}
+      />
 
-      {notice && <p className="text-sm text-accent">{notice}</p>}
-      {error && <p className="text-sm text-danger">{error}</p>}
+      {notice && (
+        <p className="rounded-xl bg-accent-soft px-4 py-3 text-sm text-accent">{notice}</p>
+      )}
+      {error && (
+        <p className="rounded-xl border border-border bg-surface px-4 py-3 text-sm text-danger">
+          {error}
+        </p>
+      )}
 
-      <nav className="flex flex-wrap gap-2">
-        <TabButton
-          active={selected === null}
-          label="전체"
-          count={totalArticles}
-          onClick={() => selectCategory(null)}
-        />
-        {categories.map((category) => (
-          <TabButton
-            key={category.id}
-            active={selected === category.id}
-            label={category.name}
-            count={category.articleCount}
-            onClick={() => selectCategory(category.id)}
-          />
-        ))}
-      </nav>
+      <CategoryTabs
+        categories={categories}
+        totalArticles={totalArticles}
+        selected={selected}
+        onSelect={selectCategory}
+      />
 
       {loading && articles.length === 0 ? (
         <p className="py-16 text-center text-sm text-muted">불러오는 중…</p>
       ) : articles.length === 0 ? (
-        <p className="py-16 text-center text-sm text-muted">
+        <p className="rounded-2xl border border-dashed border-border py-16 text-center text-sm text-muted">
           아직 기사가 없습니다. &apos;뉴스 가져오기&apos;를 눌러보세요.
         </p>
       ) : (
@@ -217,38 +202,11 @@ export function Feed() {
         <button
           type="button"
           onClick={loadMore}
-          className="mx-auto rounded-lg border border-border px-4 py-2 text-sm font-medium transition-colors hover:bg-surface-muted"
+          className="mx-auto rounded-xl border border-border bg-surface px-5 py-2.5 text-sm font-medium transition-colors hover:border-accent/40 hover:text-accent"
         >
           더 보기
         </button>
       )}
     </div>
-  );
-}
-
-function TabButton({
-  active,
-  label,
-  count,
-  onClick,
-}: {
-  active: boolean;
-  label: string;
-  count: number;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
-        active
-          ? "border-accent bg-accent-soft font-medium text-accent"
-          : "border-border text-muted hover:bg-surface-muted"
-      }`}
-    >
-      {label}
-      <span className="ml-1.5 text-xs opacity-70">{count}</span>
-    </button>
   );
 }

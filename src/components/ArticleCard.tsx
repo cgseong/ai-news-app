@@ -24,24 +24,64 @@ function notionUrl(pageId: string) {
 
 function CardShell({ children }: { children: React.ReactNode }) {
   return (
-    <article className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface">
+    <article className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-[var(--shadow-card)] transition-[box-shadow,border-color,transform] duration-200 hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-[var(--shadow-card-hover)]">
       {children}
     </article>
   );
 }
 
+/** Small pill used for the category, the source and the failure marker. */
+function Chip({
+  children,
+  tone = "neutral",
+}: {
+  children: React.ReactNode;
+  tone?: "neutral" | "accent" | "danger";
+}) {
+  const tones = {
+    neutral: "bg-surface-muted text-muted",
+    accent: "bg-accent-soft text-accent",
+    danger: "bg-surface-muted text-danger",
+  };
+  return (
+    <span
+      className={`rounded-full px-2.5 py-1 text-[11px] font-medium tracking-tight ${tones[tone]}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** Stands in for a thumbnail when the feed carried no image (TechCrunch never does). */
+function CoverFallback({ label }: { label: string }) {
+  return (
+    <div className="flex aspect-[16/9] w-full items-center justify-center bg-gradient-to-br from-accent-soft to-surface-muted">
+      <span className="text-sm font-semibold tracking-tight text-accent opacity-70">
+        {label}
+      </span>
+    </div>
+  );
+}
+
 function PendingCard({ article }: { article: FeedArticle }) {
+  const source = SOURCE_LABELS[article.source] ?? article.source;
+
   return (
     <CardShell>
+      <CoverFallback label={source} />
       <div className="flex flex-1 flex-col gap-3 p-5">
-        <span className="text-xs text-muted">{SOURCE_LABELS[article.source] ?? article.source}</span>
-        <p className="text-sm text-muted">{article.titleEn}</p>
-        <div className="mt-2 flex flex-col gap-2">
-          <div className="skeleton h-4 w-full" />
-          <div className="skeleton h-4 w-11/12" />
-          <div className="skeleton h-4 w-2/3" />
+        <div className="flex items-center gap-2">
+          <Chip tone="accent">요약 중</Chip>
+          <span className="text-xs text-muted">{source}</span>
         </div>
-        <span className="mt-auto pt-3 text-xs text-muted">요약 중…</span>
+        <p className="line-clamp-2 text-sm leading-snug font-medium text-muted">
+          {article.titleEn}
+        </p>
+        <div className="mt-1 flex flex-col gap-2">
+          <div className="skeleton h-3.5 w-full" />
+          <div className="skeleton h-3.5 w-11/12" />
+          <div className="skeleton h-3.5 w-2/3" />
+        </div>
       </div>
     </CardShell>
   );
@@ -78,56 +118,66 @@ export function ArticleCard({
   }
 
   const failed = article.status === "failed";
+  const source = SOURCE_LABELS[article.source] ?? article.source;
 
   return (
     <CardShell>
-      {article.imageUrl && (
-        // Article images come from whatever CDN the publisher uses, so next/image
-        // remote patterns would be a guessing game.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={article.imageUrl}
-          alt=""
-          className="aspect-[16/9] w-full object-cover"
-          loading="lazy"
-        />
-      )}
+      <div className="relative overflow-hidden">
+        {article.imageUrl ? (
+          // Article images come from whatever CDN the publisher uses, so next/image
+          // remote patterns would be a guessing game.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={article.imageUrl}
+            alt=""
+            className="aspect-[16/9] w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+            loading="lazy"
+          />
+        ) : (
+          <CoverFallback label={source} />
+        )}
 
-      <div className="flex flex-1 flex-col gap-3 p-5">
-        <div className="flex items-center gap-2 text-xs text-muted">
-          {article.categoryName && (
-            <span className="rounded-full bg-accent-soft px-2 py-0.5 font-medium text-accent">
-              {article.categoryName}
-            </span>
-          )}
-          {failed && (
-            <span className="rounded-full bg-surface-muted px-2 py-0.5 font-medium text-danger">
-              요약 실패
-            </span>
-          )}
-          <span>{SOURCE_LABELS[article.source] ?? article.source}</span>
+        {article.categoryName && (
+          <span className="absolute top-3 left-3 rounded-full bg-accent px-2.5 py-1 text-[11px] font-semibold text-accent-contrast shadow-sm">
+            {article.categoryName}
+          </span>
+        )}
+      </div>
+
+      <div className="flex flex-1 flex-col gap-2.5 p-5">
+        <div className="flex items-center gap-1.5 text-xs text-muted">
+          <span className="font-medium text-foreground/70">{source}</span>
           <span aria-hidden>·</span>
           <span>{formatDate(article.publishedAt)}</span>
+          {failed && (
+            <span className="ml-auto">
+              <Chip tone="danger">요약 실패</Chip>
+            </span>
+          )}
         </div>
 
-        <h2 className="text-base leading-snug font-semibold">
+        <h2 className="line-clamp-2 text-[17px] leading-snug font-semibold tracking-tight">
           {article.titleKo ?? article.titleEn}
         </h2>
 
         {failed ? (
-          <p className="text-sm text-danger">{article.error ?? "요약에 실패했습니다."}</p>
+          <p className="line-clamp-3 text-sm text-danger">
+            {article.error ?? "요약에 실패했습니다."}
+          </p>
         ) : (
-          <p className="text-sm leading-relaxed text-muted">{article.summaryKo}</p>
+          <p className="line-clamp-3 text-sm leading-relaxed text-muted">
+            {article.summaryKo}
+          </p>
         )}
 
         {saveError && <p className="text-xs text-danger">{saveError}</p>}
 
-        <div className="mt-auto flex items-center gap-2 pt-3">
+        <div className="mt-auto flex items-center gap-2 pt-4">
           <a
             href={article.url}
             target="_blank"
             rel="noreferrer"
-            className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-surface-muted"
+            className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium transition-colors hover:border-accent/40 hover:bg-accent-soft hover:text-accent"
           >
             원문 보기
           </a>
@@ -136,7 +186,7 @@ export function ArticleCard({
             <button
               type="button"
               onClick={() => onRetry(article.id)}
-              className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-surface-muted"
+              className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium transition-colors hover:border-accent/40 hover:bg-accent-soft hover:text-accent"
             >
               재시도
             </button>
@@ -145,7 +195,7 @@ export function ArticleCard({
               href={notionUrl(savedPageId)}
               target="_blank"
               rel="noreferrer"
-              className="rounded-lg bg-surface-muted px-3 py-1.5 text-xs font-medium text-muted"
+              className="ml-auto rounded-lg bg-surface-muted px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:text-foreground"
             >
               저장됨 ↗
             </a>
@@ -154,7 +204,7 @@ export function ArticleCard({
               type="button"
               onClick={saveToNotion}
               disabled={saving}
-              className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+              className="ml-auto rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-accent-contrast transition-colors hover:bg-accent-strong disabled:opacity-50"
             >
               {saving ? "저장 중…" : "Notion 저장"}
             </button>

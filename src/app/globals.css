@@ -1,28 +1,37 @@
 @import "tailwindcss";
 
 :root {
-  --background: #fbfaf8;
-  --foreground: #1b1a17;
+  --background: #f5f8fd;
+  --foreground: #0f1b2d;
   --surface: #ffffff;
-  --surface-muted: #f3f1ed;
-  --border: #e5e2dc;
-  --muted: #6f6b63;
-  --accent: #1f6feb;
-  --accent-soft: #e9f0fe;
-  --danger: #b4452f;
+  --surface-muted: #eef3fa;
+  --border: #dde6f2;
+  --muted: #5a6b85;
+  --accent: #2563eb;
+  --accent-strong: #1d4ed8;
+  /* Text laid on top of --accent. Dark mode's accent is light, so it flips. */
+  --accent-contrast: #ffffff;
+  --accent-soft: #e8f0fe;
+  --danger: #c2410c;
+  --shadow-card: 0 1px 2px rgba(15, 27, 45, 0.04), 0 8px 24px rgba(15, 27, 45, 0.05);
+  --shadow-card-hover: 0 2px 4px rgba(15, 27, 45, 0.06), 0 14px 32px rgba(37, 99, 235, 0.12);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #121211;
-    --foreground: #ececea;
-    --surface: #1b1b19;
-    --surface-muted: #232320;
-    --border: #312f2b;
-    --muted: #9a958c;
-    --accent: #6ea8ff;
-    --accent-soft: #1d2838;
-    --danger: #e08b76;
+    --background: #0a1120;
+    --foreground: #e7edf8;
+    --surface: #111b2e;
+    --surface-muted: #1a2740;
+    --border: #22314e;
+    --muted: #93a4c0;
+    --accent: #60a5fa;
+    --accent-strong: #93c5fd;
+    --accent-contrast: #0a1120;
+    --accent-soft: #15253f;
+    --danger: #f08a5d;
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-card-hover: 0 2px 4px rgba(0, 0, 0, 0.45), 0 14px 32px rgba(0, 0, 0, 0.35);
   }
 }
 
@@ -34,6 +43,8 @@
   --color-border: var(--border);
   --color-muted: var(--muted);
   --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-contrast: var(--accent-contrast);
   --color-accent-soft: var(--accent-soft);
   --color-danger: var(--danger);
   --font-sans: var(--font-geist-sans);
@@ -46,6 +57,18 @@ body {
   font-family: var(--font-geist-sans), "Apple SD Gothic Neo", "Malgun Gothic",
     system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+/* The feed sits on a faint blue wash that fades out before the fold. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 22rem;
+  z-index: -1;
+  background: linear-gradient(180deg, var(--accent-soft) 0%, transparent 100%);
+  opacity: 0.7;
+  pointer-events: none;
 }
 
 @keyframes pulse-soft {

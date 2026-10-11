@@ -17,11 +17,15 @@
 
 ## 설정
 
-### 1. 의존성
+### 1. 내려받기와 의존성
 
 ```bash
+git clone https://github.com/cgseong/ai-news-app.git
+cd ai-news-app
 npm install
 ```
+
+저장소 이름은 `ai-news-app`, 패키지와 문서상의 이름은 `ai-news-collector`로 서로 다릅니다.
 
 ### 2. 환경변수
 
@@ -68,7 +72,15 @@ URL에서 데이터베이스 ID를 꺼내 `NOTION_DATABASE_ID`에 넣습니다.
 | 발행일 | Date |
 | 저장일 | Date |
 
+속성 이름이나 타입이 하나라도 다르면 **저장 버튼을 누를 때까지 드러나지 않습니다** —
+`원문 링크 is not a property that exists` 같은 오류로 실패합니다.
+
+**integration을 데이터베이스에 연결하는 것은 토큰 발급과 별개의 단계입니다.**
+이걸 빼먹으면 토큰이 멀쩡해도 `object_not_found`로 실패하는데, 인증은 성공했지만
+해당 페이지가 integration에게 보이지 않는다는 뜻입니다.
+
 설정 화면의 `연결 상태 점검` 버튼이 토큰·접근 권한·속성 구성을 한 번에 확인해 줍니다.
+저장을 시도하기 전에 먼저 눌러 보세요.
 
 ### 6. 실행
 
@@ -104,7 +116,12 @@ npm run db:seed      # 기본 카테고리 입력
 
 ```
 src/
-  app/            화면(/, /settings, /sign-in)과 API 라우트
+  app/
+    dashboard/    유일한 본 화면 — 카드 피드와 수집 버튼 (/ 는 여기로 리다이렉트)
+    settings/     카테고리 편집, Notion 연결 점검, 실패 건 재시도
+    sign-in/      Clerk 로그인
+    preview/      디자인 프리뷰 (ui.md 확인용)
+    api/          수집·기사·카테고리·Notion 라우트 핸들러
   components/     CollectBar, ArticleCard, CategoryBar, Settings, Header
   db/             Drizzle 스키마 · 클라이언트 · 시드
   lib/

@@ -40,6 +40,7 @@ const ARTICLES: FeedArticle[] = [
     titleKo: "오픈AI, 최신 추론 모델을 개발자에게 공개",
     summaryKo:
       "오픈AI가 장문 추론에 특화된 신규 모델을 API로 열었다. 기존 모델 대비 수학·코드 벤치마크에서 두 자릿수 개선을 보였고, 가격은 토큰당 소폭 인상됐다. 회사는 에이전트 워크로드를 겨냥한 캐싱 옵션도 함께 내놨다.",
+    excerptEn: null,
     imageUrl: cover("#2563eb", "#7c3aed"),
     publishedAt: "2026-10-10T09:12:00.000Z",
     status: "enriched",
@@ -56,6 +57,7 @@ const ARTICLES: FeedArticle[] = [
     titleKo: "앤스로픽, 3,800억 달러 밸류에이션으로 신규 투자 유치",
     summaryKo:
       "앤스로픽이 기업용 수요 급증을 근거로 대규모 라운드를 마감했다. 조달 자금은 추론 인프라 확충과 엔터프라이즈 영업 조직 확대에 쓰일 예정이다.",
+    excerptEn: null,
     imageUrl: null,
     publishedAt: "2026-10-10T06:40:00.000Z",
     status: "enriched",
@@ -72,6 +74,7 @@ const ARTICLES: FeedArticle[] = [
     titleKo: "EU, AI 모델 정보 공개 의무 시한 확정",
     summaryKo:
       "EU 집행위가 범용 AI 모델 제공자에게 학습 데이터 요약과 안전성 평가 결과를 제출하도록 하는 시행 일정을 발표했다. 미제출 시 전 세계 매출 기준 과징금이 부과된다.",
+    excerptEn: null,
     imageUrl: cover("#0ea5e9", "#2563eb"),
     publishedAt: "2026-10-09T17:05:00.000Z",
     status: "enriched",
@@ -88,6 +91,7 @@ const ARTICLES: FeedArticle[] = [
     titleKo: "구글, 크롬 전면에 에이전트 브라우징 기능 적용",
     summaryKo:
       "구글이 제한적으로 시험하던 에이전트 브라우징을 전체 사용자로 확대한다. 사용자가 맡긴 작업을 탭 단위로 수행하며, 결제·로그인 단계에서는 확인을 요구한다.",
+    excerptEn: null,
     imageUrl: null,
     publishedAt: "2026-10-09T13:22:00.000Z",
     status: "enriched",
@@ -103,6 +107,8 @@ const ARTICLES: FeedArticle[] = [
     titleEn: "Chip supply crunch pushes inference prices up again",
     titleKo: null,
     summaryKo: null,
+    excerptEn:
+      "Cloud providers are quietly raising per-token prices for hosted inference as the latest accelerator shipments slip another quarter, according to three people familiar with the contracts.",
     imageUrl: null,
     publishedAt: "2026-10-09T11:00:00.000Z",
     status: "pending",
@@ -118,6 +124,8 @@ const ARTICLES: FeedArticle[] = [
     titleEn: "A startup says it can run 70B models on a single consumer GPU",
     titleKo: "소비자용 GPU 한 장으로 70B 모델을 돌린다는 스타트업",
     summaryKo: null,
+    excerptEn:
+      "The company says a new weight-streaming scheme lets a 70B parameter model run on a single 24GB consumer card at usable speeds.",
     imageUrl: cover("#6366f1", "#2563eb"),
     publishedAt: "2026-10-08T20:30:00.000Z",
     status: "failed",

@@ -7,6 +7,8 @@ export type FeedArticle = {
   titleEn: string;
   titleKo: string | null;
   summaryKo: string | null;
+  /** Opening of the English feed body — the card's summary until `summaryKo` exists. */
+  excerptEn: string | null;
   imageUrl: string | null;
   publishedAt: string | null;
   status: "pending" | "enriched" | "failed" | string;

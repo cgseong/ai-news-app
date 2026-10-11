@@ -38,11 +38,13 @@ don't restate its rules here.
 Everything lives inside Next.js — route handlers own collection, enrichment, and Notion writes.
 There is no separate collector service.
 
-- `src/lib/collect.ts` — the two-phase run, and the reason the UI feels fast.
-  `collectArticles()` only reads feeds and inserts new rows, so `POST /api/collect` answers in
-  seconds; `enrichPending()` does the LLM work and is kicked off from `after()` *after* that
-  response is sent. The feed polls `/api/articles/pending-count` every 3s and re-reads the list
-  as the count changes. Anything left `pending` is picked up by the next run — there is no queue.
+- `src/lib/collect.ts` — the two-phase run. `collectArticles()` only reads feeds and inserts new
+  rows, so `POST /api/collect` answers in seconds. It keeps **only items published in the last
+  `COLLECT_WINDOW_HOURS` (24)**; an item with no date is skipped, since the window cannot be
+  decided for it. `enrichPending()` does the LLM work and is **not wired up on this branch** —
+  classification lands later, so rows stay `pending` and `enrichPending()` will pick them all up
+  when the `after()` call comes back (see the TODO in `api/collect/route.ts`). Anything left
+  `pending` is picked up by the next run — there is no queue.
 - `src/lib/llm/` — the provider swap. `getLlmProvider()` reads `LLM_PROVIDER` and returns the
   Anthropic (`@anthropic-ai/sdk`) or OpenRouter (`openai` SDK with `baseURL` swapped)
   implementation. **Both share one prompt** (`llm/prompt.ts`) — that is the whole point, so models
@@ -55,10 +57,14 @@ There is no separate collector service.
 - `src/app/api/*` — route handlers, all dynamic because they call Clerk's `auth()`.
 - `src/lib/queries.ts` — the two list reads (`listArticles`, `listCategories`). The API routes
   and the server-rendered `/dashboard` both go through it, so the card list is built one way.
-- `src/app/dashboard/page.tsx` — server-rendered card feed, newest first, filtered by
-  `?category=`. Its DB reads are request-time, so they sit behind `<Suspense>`; with
-  `cacheComponents` the heading and the skeleton are the static shell. `/` (the client `Feed`)
-  still owns collection and the pending poll.
+- `src/app/dashboard/page.tsx` — the only screen. Server-rendered card feed, newest first,
+  filtered by `?category=`, with the collect button (`CollectBar.tsx`, a client component that
+  POSTs `/api/collect` then `router.refresh()`). Its DB reads are request-time, so they sit
+  behind `<Suspense>`; with `cacheComponents` the toolbar and the skeleton are the static shell,
+  which is why the status-line count is its own boundary with its own `countArticles()` query —
+  the button must be pressable before the card list has been read. `/` redirects here; the
+  client `Feed` and `FeedChrome` stay in the tree (only `/preview` renders the latter) because
+  classification needs the pending poll back.
 - `proxy.ts` — Clerk route protection. Next.js 16 renamed `middleware.ts` to `proxy.ts`.
 
 ### Invariants worth keeping
@@ -66,8 +72,13 @@ There is no separate collector service.
 - **Partial failure never aborts a run.** A dead feed or a failed article is recorded in
   `runs.errors` and the run continues; failures stay retryable.
 - **Collection and browsing never depend on an LLM key.** With no key configured, articles still
-  collect and display; only summaries fail.
-- **`articles.url` is the dedup key; `articles.notion_page_id` is the save-once key.**
+  collect and display: the card falls back to the start of the English feed body (`excerptEn`,
+  sliced in SQL by `listArticles`), so nothing renders as a bare skeleton.
+- **`articles.url` is the dedup key; `articles.notion_page_id` is the save-once key.** URLs are
+  normalised (`normalizeUrl` in `rss.ts`: tracking params, fragment, trailing slash) *before*
+  they are stored, so the same story under two spellings is one row. Three locks, all needed:
+  the unique index, `onConflictDoNothing` across runs, and a `Set` within a run — a single
+  INSERT cannot conflict with itself.
 - **Deleting a category moves its articles to 기타** (`is_fallback`), which cannot be deleted or
   renamed. Category edits apply to the next collection only — existing articles are never
   reclassified.
@@ -103,6 +114,12 @@ Imports use `@/*` → `./src/*`.
 - **`@notionhq/client` v5 speaks the 2025-09-03 API**, where pages hang off a *data source*, not a
   database. Resolve `databases.retrieve(...).data_sources[0].id` first, and read properties from
   `dataSources.retrieve`, not from the database object.
+- **Unlayered CSS beats every Tailwind utility.** Tailwind v4 emits utilities inside
+  `@layer utilities`, and a rule written outside any layer wins over all of them regardless of
+  order — an unlayered `.skeleton { border-radius }` silently overrode `rounded-full` at the
+  call site. Global CSS in `globals.css` goes inside `@layer components`.
+- **`hover:` is already gated behind `@media (hover: hover)`** by Tailwind v4, so hover styles
+  do not stick after a tap on touch devices. Don't add the media query by hand.
 - **tsx runs project `.ts` files as CJS** (no `"type": "module"`), so top-level `await` fails in
   scripts such as `src/db/seed.ts`. Wrap it in an async `main()`.
 - **TechCrunch's feed carries no body and no images** — one `description` sentence per item. The

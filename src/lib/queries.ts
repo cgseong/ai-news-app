@@ -11,6 +11,9 @@ import type { CategoryRow, FeedArticle } from "@/lib/types";
 
 export const ARTICLE_PAGE_SIZE = 30;
 
+/** Enough to fill the card's three summary lines, and not a byte more. */
+const EXCERPT_CHARS = 300;
+
 /**
  * Newest first. `published_at` is nullable (some feed items carry no date), so
  * those rows sort last and `id` breaks ties — two items published in the same
@@ -33,6 +36,9 @@ export async function listArticles({
       titleEn: articles.titleEn,
       titleKo: articles.titleKo,
       summaryKo: articles.summaryKo,
+      // Stand-in summary until the LLM step lands: the opening of the feed
+      // body. Sliced in SQL so the 8KB content_en never reaches the client.
+      excerptEn: sql<string | null>`left(${articles.contentEn}, ${sql.raw(String(EXCERPT_CHARS))})`,
       imageUrl: articles.imageUrl,
       publishedAt: articles.publishedAt,
       status: articles.status,
@@ -59,6 +65,19 @@ export async function listArticles({
     })),
     nextOffset: hasMore ? offset + limit : null,
   };
+}
+
+/**
+ * Just the number for the toolbar's status line. Its own small query, so the
+ * button and the heading can render before the card list has been read.
+ */
+export async function countArticles(categoryId: number | null = null): Promise<number> {
+  const [row] = await db
+    .select({ total: count() })
+    .from(articles)
+    .where(categoryId ? eq(articles.categoryId, categoryId) : undefined);
+
+  return row?.total ?? 0;
 }
 
 /** Categories in display order, each with the number of articles filed under it. */

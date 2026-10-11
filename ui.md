@@ -96,11 +96,11 @@ Tailwind의 `shadow-md` 류는 쓰지 않는다.
 ## 5. 컴포넌트
 
 ### 5.1 Header (`src/components/Header.tsx`)
-`border-b border-border bg-surface`. 좌측은 홈으로 가는 앱 이름, 우측은 `피드 / 설정 /
+`border-b border-border bg-surface`. 좌측은 대시보드로 가는 앱 이름, 우측은 `피드 / 설정 /
 UserButton`. 링크는 `text-muted hover:text-foreground`. 헤더에 동작 버튼을 두지 않는다 —
 수집은 대시보드 툴바의 일이다.
 
-### 5.2 툴바 (`FeedChrome.tsx` → `FeedToolbar`)
+### 5.2 툴바 (`CollectBar.tsx`)
 ```tsx
 <div className="flex flex-wrap items-end justify-between gap-3">
   <div>
@@ -115,6 +115,15 @@ UserButton`. 링크는 `text-muted hover:text-foreground`. 헤더에 동작 버�
 ```
 부제는 **상태 표시줄**이다. 진행 중에는 남은 건수를, 평소에는 보관 건수를 보여준다.
 진행 상태를 별도 토스트나 스피너로 띄우지 않는다.
+
+수집 결과는 툴바 **바로 아래** 한 줄로 붙는다 — 성공은 알림(accent-soft), 피드 하나가
+죽은 경우는 에러(danger)다. 둘은 배타적이지 않다: 한쪽 피드만 실패하면 두 줄이 같이 뜬다.
+
+부제의 건수는 서버에서 읽어 `subtitle` prop으로 내려보낸다. 버튼이 정적 셸에 남아 카드
+목록을 기다리지 않고 바로 눌리게 하기 위해서다. 카운트가 도착하기 전에는 `skeleton mt-2
+h-4 w-24` 한 줄이 그 자리를 지킨다.
+
+`FeedChrome.tsx`의 `FeedToolbar`는 같은 모양의 콜백 버전으로, 지금은 `/preview`만 쓴다.
 
 ### 5.3 카테고리 바 (`FeedChrome.tsx` → `CategoryTabs`)
 
@@ -144,8 +153,9 @@ UserButton`. 링크는 `text-muted hover:text-foreground`. 헤더에 동작 버�
 </nav>
 ```
 
-구현 위치: `/dashboard`는 링크 기반 `CategoryBar.tsx`(선택 상태가 URL의 `?category=`에 남아
-공유·새로고침에 견딘다), `/`의 피드는 콜백 기반 `FeedChrome.tsx`의 `CategoryTabs`다.
+구현 위치: `/dashboard`는 링크 기반 `CategoryBar.tsx`다 — 선택 상태가 URL의 `?category=`에
+남아 공유·새로고침에 견딘다. 콜백 기반 `FeedChrome.tsx`의 `CategoryTabs`는 `/preview`에만
+남아 있다.
 
 규칙:
 - 건수(`count`)는 탭 안에 `ml-1.5 text-xs opacity-70`으로 붙인다. 0건 카테고리도 숨기지 않는다.
@@ -174,9 +184,13 @@ UserButton`. 링크는 `text-muted hover:text-foreground`. 헤더에 동작 버�
 3. **메타 줄** — `출처 · 날짜`. 날짜는 `ko-KR`의 `2026년 10월 11일` 형식. 실패 시 우측 끝에
    `요약 실패` 칩.
 4. **제목** — 한국어 제목, 없으면 영어 원제. 2줄 클램프.
-5. **요약** — 3줄 클램프 `text-muted`. 실패 시 같은 자리에 `text-danger`로 에러 메시지.
+5. **요약** — 3줄 클램프 `text-muted`. 한국어 요약이 아직 없으면 **원문 발췌**(피드 본문의
+   앞 300자)가 그 자리를 채우고, 메타 줄 우측에 `원문 발췌` 칩(accent)이 붙는다. 실패 시
+   같은 자리에 `text-danger`로 에러 메시지.
 6. **액션 줄** — `mt-auto pt-4`로 카드 바닥에 고정. 좌측 `원문 보기`(아웃라인),
    우측 `ml-auto`로 `Notion 저장`(accent) / `저장됨 ↗`(중성) / `재시도`(실패 시).
+   요약 전 기사는 저장 버튼 대신 `요약 대기 중` 문구만 둔다 — 요약 없는 Notion 페이지를
+   만들어 두면 저장은 한 번뿐이라 되돌릴 수 없다.
 
 버튼 변형은 셋뿐이다:
 
@@ -196,9 +210,13 @@ font-semibold`, 설명 `text-xs text-muted`. 카드 피드와 달리 그리드�
 
 ## 6. 상호작용
 
+- `hover:`는 Tailwind v4가 이미 `@media (hover: hover)`로 감싸므로 터치 기기에서 들러붙지 않는다.
+  직접 미디어쿼리를 덧댈 필요가 없다.
 - 전이는 색/그림자/위치에만 걸고 `duration-200` 안쪽으로 짧게. 레이아웃이 움직이는 애니메이션은
   카드 hover의 `-translate-y-0.5`가 전부다.
 - 포커스 링은 브라우저 기본을 지우지 않는다. `outline-none`을 쓸 거면 대체 링을 반드시 준다.
+- 서버에서 그리는 목록으로 가는 링크(카테고리 탭, 더 보기)는 **기다린다는 표시를 준다** —
+  `PendingDot`(`useLinkStatus`)을 링크 안에 둔다. 프리페치가 끝난 링크에서는 보이지 않는다.
 - 모든 클릭 가능 요소는 `<button type="button">` 또는 `<a>`다. `<div onClick>` 금지.
 - 아이콘만 있는 버튼에는 `aria-label`, 장식용 기호(`·`, `＋`)에는 `aria-hidden`.
 - 외부 링크는 `target="_blank" rel="noreferrer"`.
@@ -210,14 +228,17 @@ font-semibold`, 설명 `text-xs text-muted`. 카드 피드와 달리 그리드�
 | 상태 | 모양 |
 |---|---|
 | 최초 로딩 | `py-16 text-center text-sm text-muted` — "불러오는 중…" |
-| 기사 없음 | `rounded-2xl border border-dashed border-border py-16 text-center` — "아직 기사가 없습니다. '뉴스 가져오기'를 눌러보세요." |
-| 요약 대기(pending) | 카드 자리를 유지한 채 `.skeleton` 3줄 + `요약 중` 칩. 카드를 숨기지 않는다. |
+| 기사 없음 | `rounded-2xl border border-dashed border-border px-6 py-16 text-center`. **막다른 길로 두지 않는다** — 제목 + 설명 + 나가는 길. 두 갈래다: 필터 결과 0건(→ `전체 보기` 링크), 전체 0건(→ 바로 위 `뉴스 가져오기` 안내, 링크 없음) |
+| 요약 대기(pending) | 스켈레톤이 아니라 **완성된 카드**다. 영어 원제 + 원문 발췌 + `원문 발췌` 칩. 수집만 되고 분류가 아직 없는 상태가 기본이므로, 읽을 수 있는 카드로 둔다. |
 | 요약 실패(failed) | 요약 자리에 `text-danger` 에러, 액션 줄에 `재시도` 버튼 |
 | 알림(notice) | `rounded-xl bg-accent-soft px-4 py-3 text-sm text-accent` |
 | 에러(error) | `rounded-xl border border-border bg-surface px-4 py-3 text-sm text-danger` |
+| 화면 전체 실패 | 라우트의 `error.tsx`. 카드와 같은 `rounded-2xl` 패널에 제목(`text-danger`) + 원인 메시지 + `다시 시도`(아웃라인) |
 
-`.skeleton`은 `globals.css`에 정의된 유틸(`--surface-muted` 배경 + `pulse-soft` 1.6s)이다.
-Tailwind의 `animate-pulse` 대신 이것을 쓴다.
+`.skeleton`은 `globals.css`의 `@layer components` 안에 정의된 유틸(`--surface-muted` 배경 +
+`pulse-soft` 1.6s)이다. Tailwind의 `animate-pulse` 대신 이것을 쓰되, **레이어 밖에 두지 않는다** —
+레이어 없는 규칙은 Tailwind 유틸리티를 이기므로 `.skeleton`의 기본 `border-radius`가 호출부의
+`rounded-full`·`rounded-none`을 덮어쓴다. 같은 이유로 새 전역 CSS도 레이어 안에 넣는다.
 
 ---
 
@@ -237,8 +258,9 @@ Tailwind의 `animate-pulse` 대신 이것을 쓴다.
 
 - 헤더와 `metadata.title`은 아직 **"AI 뉴스 콜렉터"**다. 이 문서의 기준 명칭은
   **"AI 뉴스 수집기"**이므로, 다음 작업에서 `Header.tsx`·`layout.tsx`·`README.md`를 맞춰야 한다.
-- 카테고리 추가 버튼은 `/dashboard`의 `CategoryBar`에만 있다. `/`의 `CategoryTabs`에는 아직
-  없고, 이름 수정·삭제는 계속 `설정` 화면이 담당한다.
-- 화면이 둘이다: `/`는 클라이언트에서 API를 호출하며 요약 진행을 폴링하는 피드,
-  `/dashboard`는 DB를 직접 읽어 서버에서 그리는 카드 목록(수집 버튼 없음, 폴링 없음)이다.
-  둘을 합치기 전까지는 카드·카테고리 바 스타일이 어긋나지 않게 같이 고친다.
+- 카테고리 추가 버튼은 `CategoryBar`에만 있고, 이름 수정·삭제는 계속 `설정` 화면이 담당한다.
+- 화면은 `/dashboard` 하나다. `/`는 그리로 리다이렉트한다. 클라이언트 피드(`Feed.tsx`)와
+  `FeedChrome.tsx`는 지우지 않고 남겨뒀다 — 요약 진행 폴링이 필요한 분류 단계에서 되살린다.
+  그때까지 `FeedChrome`은 `/preview`만 쓰므로, 툴바·탭 디자인을 바꾸면 `CollectBar`·
+  `CategoryBar`와 같이 고쳐야 한다.
+- `원문 발췌`는 임시다. 분류·요약이 붙어 `summaryKo`가 채워지면 칩과 폴백 분기를 걷어낸다.

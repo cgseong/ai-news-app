@@ -3,8 +3,8 @@ import { asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { articles, categories, runs, type Category, type RunError } from "@/db/schema";
 import { getLlmProvider, LlmNotConfiguredError, type LlmProvider } from "@/lib/llm";
-import { fetchFeed } from "@/lib/rss";
-import { SOURCES } from "@/lib/sources";
+import { fetchFeed, type FeedItem } from "@/lib/rss";
+import { COLLECT_WINDOW_HOURS, ITEMS_PER_FEED, SOURCES } from "@/lib/sources";
 
 /** How many articles one enrichment pass will work through. */
 const ENRICH_BATCH = 60;
@@ -24,12 +24,25 @@ async function appendRunErrors(runId: number, newErrors: RunError[]) {
     .where(eq(runs.id, runId));
 }
 
+type DatedItem = FeedItem & { publishedAt: Date };
+
+function isFresh(item: FeedItem, cutoff: Date): item is DatedItem {
+  return item.publishedAt !== null && item.publishedAt >= cutoff;
+}
+
 /**
  * Phase 1 (PRD §5 F1): read the feeds and store what is new. Deliberately does
  * no LLM work so the button can answer in a couple of seconds.
+ *
+ * Only items published inside the window are kept. An item with no date is
+ * skipped: "the last 24 hours" is not a question that can be answered for it,
+ * and guessing would let the whole back catalogue in on the first run.
  */
-export async function collectArticles() {
+export async function collectArticles({
+  windowHours = COLLECT_WINDOW_HOURS,
+}: { windowHours?: number } = {}) {
   const [run] = await db.insert(runs).values({}).returning({ id: runs.id });
+  const cutoff = new Date(Date.now() - windowHours * 60 * 60 * 1000);
 
   const results = await Promise.allSettled(SOURCES.map((source) => fetchFeed(source)));
 
@@ -50,8 +63,18 @@ export async function collectArticles() {
       return;
     }
 
-    for (const item of result.value) {
-      fetched += 1;
+    fetched += result.value.length;
+
+    const fresh = result.value
+      .filter((item): item is DatedItem => isFresh(item, cutoff))
+      // Newest first, so ITEMS_PER_FEED drops the oldest of a busy day rather
+      // than whatever the feed happened to list last.
+      .sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime())
+      .slice(0, ITEMS_PER_FEED);
+
+    for (const item of fresh) {
+      // `articles.url` is unique, but a single INSERT cannot conflict with
+      // itself — the same link in both feeds has to be caught here.
       if (seen.has(item.url)) continue;
       seen.add(item.url);
       rows.push({
@@ -73,12 +96,15 @@ export async function collectArticles() {
       : await db
           .insert(articles)
           .values(rows)
+          // Everything collected before is already here; this is the dedup.
           .onConflictDoNothing({ target: articles.url })
           .returning({ id: articles.id });
 
   await db
     .update(runs)
-    .set({ fetched, inserted: inserted.length })
+    // Phase 2 is not wired up yet, so the run ends here. enrichPending() stamps
+    // finishedAt again once classification is turned on.
+    .set({ fetched, inserted: inserted.length, finishedAt: new Date() })
     .where(eq(runs.id, run.id));
   await appendRunErrors(run.id, errors);
 

@@ -1,21 +1,17 @@
-import { after } from "next/server";
-
-import { collectArticles, enrichPending } from "@/lib/collect";
+import { collectArticles } from "@/lib/collect";
 import { failure, requireUserId, unauthorized } from "@/lib/api";
 
 export async function POST() {
   if (!(await requireUserId())) return unauthorized();
 
   try {
-    const result = await collectArticles();
-
-    // Phase 2 runs after the response is sent, so the button answers in seconds
-    // and the client polls pending-count while summaries land (PRD §5 F1).
-    after(async () => {
-      await enrichPending(result.runId);
-    });
-
-    return Response.json(result);
+    // Phase 1 only: read the feeds, store the last 24 hours, answer.
+    // TODO(classification): bring back
+    //   after(async () => { await enrichPending(result.runId); })
+    // once the Claude translation/summary/classification step lands. Rows are
+    // stored as `pending`, so enrichPending() will pick up everything collected
+    // in the meantime — nothing has to be backfilled by hand.
+    return Response.json(await collectArticles());
   } catch (error) {
     return failure(error);
   }

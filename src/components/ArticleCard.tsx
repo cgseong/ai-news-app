@@ -63,30 +63,6 @@ function CoverFallback({ label }: { label: string }) {
   );
 }
 
-function PendingCard({ article }: { article: FeedArticle }) {
-  const source = SOURCE_LABELS[article.source] ?? article.source;
-
-  return (
-    <CardShell>
-      <CoverFallback label={source} />
-      <div className="flex flex-1 flex-col gap-3 p-5">
-        <div className="flex items-center gap-2">
-          <Chip tone="accent">요약 중</Chip>
-          <span className="text-xs text-muted">{source}</span>
-        </div>
-        <p className="line-clamp-2 text-sm leading-snug font-medium text-muted">
-          {article.titleEn}
-        </p>
-        <div className="mt-1 flex flex-col gap-2">
-          <div className="skeleton h-3.5 w-full" />
-          <div className="skeleton h-3.5 w-11/12" />
-          <div className="skeleton h-3.5 w-2/3" />
-        </div>
-      </div>
-    </CardShell>
-  );
-}
-
 export function ArticleCard({
   article,
   onRetry,
@@ -97,10 +73,6 @@ export function ArticleCard({
   const [savedPageId, setSavedPageId] = useState(article.notionPageId);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-
-  if (article.status === "pending") {
-    return <PendingCard article={article} />;
-  }
 
   async function saveToNotion() {
     setSaving(true);
@@ -119,6 +91,10 @@ export function ArticleCard({
 
   const failed = article.status === "failed";
   const source = SOURCE_LABELS[article.source] ?? article.source;
+  // No Korean summary yet (collected but not classified, or the LLM failed):
+  // the card shows the start of the original feed body instead of a skeleton,
+  // so a collected article is readable with no LLM key in sight.
+  const excerpted = !article.summaryKo;
 
   return (
     <CardShell>
@@ -149,10 +125,16 @@ export function ArticleCard({
           <span className="font-medium text-foreground/70">{source}</span>
           <span aria-hidden>·</span>
           <span>{formatDate(article.publishedAt)}</span>
-          {failed && (
+          {failed ? (
             <span className="ml-auto">
               <Chip tone="danger">요약 실패</Chip>
             </span>
+          ) : (
+            excerpted && (
+              <span className="ml-auto">
+                <Chip tone="accent">원문 발췌</Chip>
+              </span>
+            )
           )}
         </div>
 
@@ -166,7 +148,7 @@ export function ArticleCard({
           </p>
         ) : (
           <p className="line-clamp-3 text-sm leading-relaxed text-muted">
-            {article.summaryKo}
+            {article.summaryKo ?? article.excerptEn ?? "원문에 본문이 없습니다."}
           </p>
         )}
 
@@ -190,6 +172,9 @@ export function ArticleCard({
             >
               재시도
             </button>
+          ) : excerpted ? (
+            // Saving now would write a Notion page with an empty summary.
+            <span className="ml-auto text-xs text-muted">요약 대기 중</span>
           ) : savedPageId ? (
             <a
               href={notionUrl(savedPageId)}

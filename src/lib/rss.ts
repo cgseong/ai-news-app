@@ -1,6 +1,6 @@
 import { XMLParser } from "fast-xml-parser";
 
-import { ITEMS_PER_FEED, type Source } from "./sources";
+import { type Source } from "./sources";
 
 export type FeedItem = {
   url: string;
@@ -82,6 +82,33 @@ function firstImage(html: string | null): string | null {
   return match ? match[1] : null;
 }
 
+/**
+ * Query parameters that identify the referrer rather than the article. Feeds
+ * append them inconsistently, so the same story can arrive under two URLs —
+ * and `articles.url` is the dedup key, so that would mean two rows.
+ */
+const TRACKING_PARAM = /^(utm_|ref$|ref_|source$|fbclid$|gclid$|mc_cid$|mc_eid$|guccounter$|guce_|_hsenc$|_hsmi$)/i;
+
+/** The dedup key. Same article, same string — whatever the feed spells it as. */
+export function normalizeUrl(raw: string): string {
+  const trimmed = raw.trim();
+  try {
+    const url = new URL(trimmed);
+    url.hash = "";
+    url.hostname = url.hostname.toLowerCase();
+    for (const key of [...url.searchParams.keys()]) {
+      if (TRACKING_PARAM.test(key)) url.searchParams.delete(key);
+    }
+    // ".../post/" and ".../post" are one article; "/" alone is not a trailing slash.
+    if (url.pathname.length > 1) url.pathname = url.pathname.replace(/\/+$/, "");
+    return url.toString();
+  } catch {
+    // Not a URL we can parse (a bare guid, say) — leave it alone rather than
+    // mangling the one string we have to dedup on.
+    return trimmed;
+  }
+}
+
 function parseDate(value: string | null): Date | null {
   if (!value) return null;
   const date = new Date(value);
@@ -103,7 +130,7 @@ function rssItems(channel: AnyRecord): FeedItem[] {
 
     return [
       {
-        url,
+        url: normalizeUrl(url),
         titleEn,
         author: authorNames(item["dc:creator"] ?? item.author),
         contentEn: stripHtml(body),
@@ -136,7 +163,7 @@ function atomEntries(feed: AnyRecord): FeedItem[] {
 
     return [
       {
-        url,
+        url: normalizeUrl(url),
         titleEn,
         author: authorNames(entry.author),
         contentEn: stripHtml(body),
@@ -171,5 +198,7 @@ export async function fetchFeed(source: Source): Promise<FeedItem[]> {
     throw new Error(`${source.label} responded ${response.status}`);
   }
 
-  return parseFeed(await response.text()).slice(0, ITEMS_PER_FEED);
+  // No cap here: the time window in collect.ts decides what counts as new, and
+  // capping first would hide fresh items behind stale ones.
+  return parseFeed(await response.text());
 }

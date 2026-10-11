@@ -28,6 +28,11 @@ record that command here.
 
 Setup (env vars, Neon, Clerk, the Notion database layout) is in `README.md`; don't duplicate it here.
 
+`ui.md` is the UI guide — color tokens, typography, layout rhythm, the component specs for the
+header, toolbar, category bar and article card, and the state-by-state screens. Read it before
+touching anything under `src/components/` or `globals.css`, and update it when the design changes;
+don't restate its rules here.
+
 ## Architecture
 
 Everything lives inside Next.js — route handlers own collection, enrichment, and Notion writes.
@@ -48,6 +53,12 @@ There is no separate collector service.
   Proxy: importing it never throws, so a missing `DATABASE_URL` surfaces on the first query
   instead of at build time.
 - `src/app/api/*` — route handlers, all dynamic because they call Clerk's `auth()`.
+- `src/lib/queries.ts` — the two list reads (`listArticles`, `listCategories`). The API routes
+  and the server-rendered `/dashboard` both go through it, so the card list is built one way.
+- `src/app/dashboard/page.tsx` — server-rendered card feed, newest first, filtered by
+  `?category=`. Its DB reads are request-time, so they sit behind `<Suspense>`; with
+  `cacheComponents` the heading and the skeleton are the static shell. `/` (the client `Feed`)
+  still owns collection and the pending poll.
 - `proxy.ts` — Clerk route protection. Next.js 16 renamed `middleware.ts` to `proxy.ts`.
 
 ### Invariants worth keeping

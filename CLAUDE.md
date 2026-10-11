@@ -4,14 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository state
 
-Implemented, not yet run. Next.js 16 app: RSS collection → LLM translation/summary/classification
-→ card feed → save to Notion. `PRD.md` is the spec and matches the code.
+Running end to end as of 2026-10-11. Next.js 16 app: RSS collection → LLM
+translation/summary/classification → card feed → save to Notion. `PRD.md` is the spec and
+matches the code.
 
-**Nothing has been executed against real services.** `npm run build`, `npm run lint`, and
-`tsc --noEmit` pass, and the RSS parser was verified against both live feeds. The database, Clerk,
-LLM, and Notion paths have never run — no credentials exist on this machine. The enrichment path
-is now wired end to end in code, which is not the same as having run: expect the first real run to
-surface integration problems, and don't describe those paths as working.
+**The whole chain has now run against real services on this machine** — Neon, Clerk, OpenRouter,
+and Notion. `/dashboard` renders collected articles, enrichment fills the cards, and the
+「Notion 저장」 button wrote a real page. Credentials live in `.env.local`, which is
+gitignored, so a fresh clone still has none of them and starts back at nothing-has-run.
+
+`npm run build`, `npm run lint`, and `tsc --noEmit` pass. Vercel deployment is still untried:
+`after()` is unbounded under `next dev`, so the enrichment pass finishing locally says nothing
+about the 300s production budget.
 
 ## Commands
 
@@ -124,6 +128,17 @@ Imports use `@/*` → `./src/*`.
 - **`@notionhq/client` v5 speaks the 2025-09-03 API**, where pages hang off a *data source*, not a
   database. Resolve `databases.retrieve(...).data_sources[0].id` first, and read properties from
   `dataSources.retrieve`, not from the database object.
+- **A Notion property mismatch only surfaces on write.** The database is the user's to build, so
+  its columns drift from `REQUIRED_PROPERTIES`; `pages.create` then fails with
+  `"원문 링크 is not a property that exists"` — one line per offending column, and nothing is
+  saved. `checkNotionHealth()` (`/api/notion/health`, the settings screen's 「연결 상태 점검」)
+  exists to catch that before a save does. Note what it tells you apart: `object_not_found` means
+  the integration was never connected to the database, which is a separate step from the token —
+  authentication succeeding says nothing about the integration being able to see the page.
+- **Killing `next dev` can corrupt the Turbopack cache.** A SIGTERM mid-write leaves the persistent
+  cache unreadable and the next start dies with
+  `Failed to open database: Loading persistence directory failed`. `rm -rf .next` fixes it; nothing
+  else does.
 - **Unlayered CSS beats every Tailwind utility.** Tailwind v4 emits utilities inside
   `@layer utilities`, and a rule written outside any layer wins over all of them regardless of
   order — an unlayered `.skeleton { border-radius }` silently overrode `rounded-full` at the

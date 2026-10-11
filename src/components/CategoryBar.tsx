@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { PendingDot } from "@/components/PendingDot";
 import type { CategoryRow } from "@/lib/types";
 
 /**
@@ -65,6 +66,8 @@ function CategoryLink({
     >
       {label}
       <span className="ml-1.5 text-xs opacity-70">{count}</span>
+      {/* The list is server-rendered, so a switch waits on the server; say so. */}
+      <PendingDot />
     </Link>
   );
 }
@@ -130,8 +133,10 @@ function AddCategoryButton() {
     );
   }
 
+  // On a phone the form takes the whole row — an input, a button and an error
+  // message do not fit beside the tabs at 375px.
   return (
-    <span className="flex items-center gap-2">
+    <span className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
       <input
         autoFocus
         value={name}
@@ -146,17 +151,21 @@ function AddCategoryButton() {
         onBlur={() => {
           if (!saving && !name.trim()) close();
         }}
-        className="w-40 rounded-full border border-accent/40 bg-surface px-3.5 py-1.5 text-sm outline-none placeholder:text-muted disabled:opacity-50"
+        className="min-w-0 flex-1 rounded-full border border-accent/40 bg-surface px-3.5 py-1.5 text-sm outline-none placeholder:text-muted disabled:opacity-50 sm:w-40 sm:flex-none"
       />
       <button
         type="button"
         onClick={() => void save()}
         disabled={saving}
-        className="rounded-full bg-accent px-3.5 py-1.5 text-sm font-medium text-accent-contrast transition-colors hover:bg-accent-strong disabled:opacity-50"
+        className="shrink-0 rounded-full bg-accent px-3.5 py-1.5 text-sm font-medium text-accent-contrast transition-colors hover:bg-accent-strong disabled:opacity-50"
       >
         {saving ? "추가 중…" : "추가"}
       </button>
-      {error && <span className="text-xs text-danger">{error}</span>}
+      {error && (
+        <span role="alert" className="basis-full text-xs text-danger">
+          {error}
+        </span>
+      )}
     </span>
   );
 }

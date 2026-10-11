@@ -6,10 +6,28 @@ import { getLlmProvider, LlmNotConfiguredError, type LlmProvider } from "@/lib/l
 import { fetchFeed, type FeedItem } from "@/lib/rss";
 import { COLLECT_WINDOW_HOURS, ITEMS_PER_FEED, SOURCES } from "@/lib/sources";
 
-/** How many articles one enrichment pass will work through. */
-const ENRICH_BATCH = 60;
-/** Concurrent LLM calls. Low on purpose — this is a personal app, not a crawler. */
-const ENRICH_CONCURRENCY = 3;
+/**
+ * How many articles one enrichment pass will work through. A 24-hour window
+ * across two feeds caps at `ITEMS_PER_FEED * SOURCES.length` = 40 in theory and
+ * runs 10-25 in practice, so a normal day finishes in one pass and a backlog
+ * drains over two. The real constraint is the `after()` budget — see below.
+ */
+const ENRICH_BATCH = 30;
+/**
+ * Concurrent LLM calls. Sized by the `after()` budget, not by politeness to the
+ * sources: 30/6 is five rounds. `src/db/index.ts` is the neon-http driver (one
+ * independent HTTP request per query), so there is no connection pool to starve.
+ */
+const ENRICH_CONCURRENCY = 6;
+/**
+ * Stop handing out *new* work with enough of the budget left to report; Vercel's
+ * fluid-compute default is 300s and `after()` runs inside it. This bounds the
+ * common overrun — a day with more articles than rounds — not a single article
+ * that hangs, whose ceiling is the provider's timeout times its retries. If one
+ * does blow the budget the function dies mid-batch, which costs nothing beyond a
+ * run with no `finishedAt`: the rows stay `pending` and the next collect resumes.
+ */
+const ENRICH_DEADLINE_MS = 240_000;
 
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
@@ -102,9 +120,11 @@ export async function collectArticles({
 
   await db
     .update(runs)
-    // Phase 2 is not wired up yet, so the run ends here. enrichPending() stamps
-    // finishedAt again once classification is turned on.
-    .set({ fetched, inserted: inserted.length, finishedAt: new Date() })
+    // `finishedAt` is phase 2's to stamp — enrichPending() writes it on every
+    // exit path (nothing pending, no key, done). Leaving it null here is what
+    // gives the column a meaning: a run that never got one had its enrichment
+    // pass killed before it could report.
+    .set({ fetched, inserted: inserted.length })
     .where(eq(runs.id, run.id));
   await appendRunErrors(run.id, errors);
 
@@ -151,7 +171,9 @@ async function enrichOne(
     const message = errorMessage(error);
     await db
       .update(articles)
-      .set({ status: "failed", error: message })
+      // Record the model on the failure too: comparing models is half the point
+      // of the provider layer, and "which one failed" is part of that comparison.
+      .set({ status: "failed", error: message, llmModel: provider.id })
       .where(eq(articles.id, article.id));
     return { stage: "enrich", message };
   }
@@ -172,8 +194,15 @@ async function pool<T>(items: T[], limit: number, worker: (item: T) => Promise<v
 /**
  * Phase 2 (PRD §5 F1): translate/summarise/classify everything still pending.
  * Also the retry path — anything left behind by an earlier run is picked up here.
+ *
+ * Note that `runId` only says where to *report*: the pass drains the pending
+ * queue, not this run's rows, so a run can report `inserted: 3, enriched: 28`
+ * after clearing a backlog. Scoping it to the run's own ids would split this
+ * signature from the retry path, which has no run at all.
  */
 export async function enrichPending(runId?: number) {
+  const deadline = Date.now() + ENRICH_DEADLINE_MS;
+
   const pending = await db
     .select({ id: articles.id, titleEn: articles.titleEn, contentEn: articles.contentEn })
     .from(articles)
@@ -203,8 +232,15 @@ export async function enrichPending(runId?: number) {
 
   const failures: RunError[] = [];
   let enriched = 0;
+  let skipped = 0;
 
   await pool(pending, ENRICH_CONCURRENCY, async (article) => {
+    // Out of budget: leave it pending rather than start work the function will
+    // be killed in the middle of. The next collect picks it up.
+    if (Date.now() > deadline) {
+      skipped += 1;
+      return;
+    }
     const failure = await enrichOne(provider, categoryList, article);
     if (failure) failures.push(failure);
     else enriched += 1;
@@ -215,10 +251,32 @@ export async function enrichPending(runId?: number) {
       .update(runs)
       .set({ enriched, failed: failures.length, finishedAt: new Date() })
       .where(eq(runs.id, runId));
-    await appendRunErrors(runId, failures);
+    // Skipped rows are not failures — they were never attempted — so they stay
+    // out of the `failed` count and are reported as their own line instead.
+    await appendRunErrors(runId, [
+      ...failures,
+      ...(skipped > 0
+        ? [
+            {
+              stage: "enrich" as const,
+              message: `시간 예산을 다 써서 ${skipped}건을 넘겼습니다. 다음 수집 때 이어집니다.`,
+            },
+          ]
+        : []),
+    ]);
   }
 
   return { enriched, failed: failures.length };
+}
+
+/**
+ * Close a run on an error that escaped `enrichPending()`. `after()` swallows a
+ * throw into `console.error`, so without this the run would stay open with
+ * nothing to show for it — and the run log is the only place the user looks.
+ */
+export async function failRun(runId: number, error: unknown) {
+  await appendRunErrors(runId, [{ stage: "enrich", message: errorMessage(error) }]);
+  await db.update(runs).set({ finishedAt: new Date() }).where(eq(runs.id, runId));
 }
 
 /** Re-queue failed articles so the next enrichment pass picks them up. */

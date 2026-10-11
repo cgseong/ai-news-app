@@ -1,15 +1,33 @@
 import { z } from "zod";
 
+/**
+ * Every field is required *and* non-blank. A blank summary is worse than a
+ * missing one: `ArticleCard` falls back with `summaryKo ?? excerptEn`, and an
+ * empty string is not null, so the card body would render empty. Rejecting it
+ * here turns the article into a `failed` row the retry path can pick up.
+ *
+ * Each field spells out `z.string().trim().min(1)` instead of sharing one
+ * constant: a shared base makes zod emit a single `$defs` entry that all four
+ * properties `$ref`, and the per-field descriptions are lost on the way — which
+ * is half of what the Anthropic schema tells the model.
+ */
 export const enrichSchema = z.object({
-  title_ko: z.string().describe("기사 제목의 한국어 번역"),
-  summary_ko: z.string().describe("기사 핵심 내용 3~4문장 한국어 요약"),
-  category: z.string().describe("주어진 카테고리 목록 중 정확히 하나의 이름"),
-  category_reason: z.string().describe("그 카테고리를 고른 이유 한 줄"),
+  title_ko: z.string().trim().min(1).describe("기사 제목의 한국어 번역"),
+  summary_ko: z.string().trim().min(1).describe("기사 핵심 내용 3~4문장 한국어 요약"),
+  category: z.string().trim().min(1).describe("주어진 카테고리 목록 중 정확히 하나의 이름"),
+  category_reason: z.string().trim().min(1).describe("그 카테고리를 고른 이유 한 줄"),
 });
 
 export type EnrichResult = z.infer<typeof enrichSchema>;
 
-/** JSON Schema mirror of `enrichSchema`, for providers that take raw JSON Schema. */
+/**
+ * JSON Schema mirror of `enrichSchema`, for providers that take raw JSON Schema.
+ *
+ * Deliberately *not* a literal mirror: this one goes out on the wire under
+ * OpenRouter's `strict: true`, and how much of the string vocabulary a strict
+ * subset accepts varies by provider. Keep it to type + description + required +
+ * additionalProperties, and let zod enforce the non-blank rule on the way back.
+ */
 export const enrichJsonSchema = {
   type: "object",
   properties: {
@@ -29,7 +47,7 @@ export type EnrichInput = {
 };
 
 export interface LlmProvider {
-  /** Recorded on the article, e.g. "anthropic:claude-opus-5-5". */
+  /** Recorded on the article, e.g. "openrouter:anthropic/claude-haiku-5.5". */
   readonly id: string;
   enrich(input: EnrichInput): Promise<EnrichResult>;
 }

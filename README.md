@@ -1,6 +1,6 @@
 # AI 뉴스 콜렉터
 
-해외 AI 뉴스 RSS를 수집해 Claude(또는 OpenRouter 경유 모델)로 한국어 번역·요약·분류하고,
+해외 AI 뉴스 RSS를 수집해 OpenRouter 경유 모델(또는 Anthropic API)로 한국어 번역·요약·분류하고,
 카드 피드로 보여주는 개인용 웹앱. 마음에 드는 기사는 버튼 하나로 Notion에 저장합니다.
 
 전체 사양은 [`PRD.md`](./PRD.md)에 있습니다.
@@ -12,7 +12,7 @@
 | Node.js 20+ | 실행 |
 | [Neon](https://neon.tech) 데이터베이스 | 기사·카테고리·실행 기록 저장 |
 | [Clerk](https://clerk.com) 애플리케이션 | 로그인 (혼자 쓰는 문지기) |
-| Anthropic API 키 **또는** OpenRouter API 키 | 번역·요약·분류 |
+| OpenRouter API 키 **또는** Anthropic API 키 | 번역·요약·분류 |
 | Notion internal integration + 데이터베이스 | 기사 저장 |
 
 ## 설정
@@ -31,10 +31,14 @@ npm install
 cp .env.example .env.local
 ```
 
-LLM은 `LLM_PROVIDER`로 고릅니다. `anthropic`(기본)이면 `ANTHROPIC_API_KEY`를,
-`openrouter`면 `OPENROUTER_API_KEY`를 채우면 됩니다. 모델은 각각 `ANTHROPIC_MODEL`,
-`OPENROUTER_MODEL`로 바꿔가며 비교할 수 있습니다 (OpenRouter 모델 ID는 `anthropic/claude-opus-5-5`
+LLM은 `LLM_PROVIDER`로 고릅니다. `openrouter`(기본)면 `OPENROUTER_API_KEY`를,
+`anthropic`이면 `ANTHROPIC_API_KEY`를 채우면 됩니다. 모델은 각각 `OPENROUTER_MODEL`,
+`ANTHROPIC_MODEL`로 바꿔가며 비교할 수 있습니다 (OpenRouter 모델 ID는 `anthropic/claude-haiku-5.5`
 처럼 벤더 접두사가 필요합니다).
+
+기본값이 OpenRouter인 이유는 키 하나로 여러 벤더 모델을 같은 프롬프트에 물려 비교하는 것이
+이 앱의 실제 사용 패턴이기 때문입니다. 기본 모델 `anthropic/claude-haiku-5.5`는 RSS 한 문장~700자를
+3~4문장으로 줄이는 작업에 충분하고, 품질이 아쉬우면 `OPENROUTER_MODEL` 한 줄로 올릴 수 있습니다.
 
 ### 3. 데이터베이스
 
@@ -101,10 +105,10 @@ npm run db:seed      # 기본 카테고리 입력
 ```
 src/
   app/            화면(/, /settings, /sign-in)과 API 라우트
-  components/     Feed, ArticleCard, Settings, Header
+  components/     CollectBar, ArticleCard, CategoryBar, Settings, Header
   db/             Drizzle 스키마 · 클라이언트 · 시드
   lib/
-    llm/          프로바이더 전환(anthropic | openrouter) + 공용 프롬프트
+    llm/          프로바이더 전환(openrouter | anthropic) + 공용 프롬프트
     collect.ts    수집·요약 오케스트레이션
     rss.ts        RSS 2.0 / Atom 파서
     notion.ts     Notion 저장 및 연결 점검

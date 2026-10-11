@@ -83,8 +83,9 @@ TechCrunch는 요약의 재료가 제목 + 한 문장뿐이다. 요약 품질이
 
 기사 1건당 LLM을 **1회** 호출한다. 어느 벤더로 나가는지는 환경변수가 정한다 (F2.1).
 
-- 기본: Anthropic Claude API, 모델 `claude-opus-5-5`
-- 대안: OpenRouter — 키 하나로 여러 벤더 모델을 바꿔가며 써볼 수 있다
+- 기본: OpenRouter, 모델 `anthropic/claude-haiku-5.5` — 키 하나로 여러 벤더 모델을 같은
+  프롬프트에 물려 비교하는 것이 이 앱의 실제 사용 패턴이라 기본값으로 둔다 (§12 "모델 선택" 결론)
+- 대안: Anthropic Claude API 직결, 모델 `claude-opus-5-5`
 - 출력은 JSON 스키마로 강제한다. 강제 방식은 프로바이더마다 다르다 (F2.1)
 - `max_tokens`: 8000, 비스트리밍. 요약 자체는 짧지만 Claude 5 계열은 thinking을 끌 수 없고
   thinking 토큰이 `max_tokens`에 함께 잡히므로 여유를 둔다. 대신 `effort`를 `low`로 내려
@@ -113,8 +114,8 @@ TechCrunch는 요약의 재료가 제목 + 한 문장뿐이다. 요약 품질이
 
 | `LLM_PROVIDER` | SDK | 엔드포인트 | 모델 환경변수 |
 |---|---|---|---|
-| `anthropic` (기본) | `@anthropic-ai/sdk` | Anthropic API | `ANTHROPIC_MODEL` — 기본 `claude-opus-5-5` |
-| `openrouter` | `openai` SDK + `baseURL` 교체 | `https://openrouter.ai/api/v1` | `OPENROUTER_MODEL` — 예: `anthropic/claude-opus-5-5` |
+| `openrouter` (기본) | `openai` SDK + `baseURL` 교체 | `https://openrouter.ai/api/v1` | `OPENROUTER_MODEL` — 기본 `anthropic/claude-haiku-5.5` |
+| `anthropic` | `@anthropic-ai/sdk` | Anthropic API | `ANTHROPIC_MODEL` — 기본 `claude-opus-5-5` |
 
 **인터페이스**
 
@@ -140,14 +141,15 @@ interface LlmProvider {
 **OpenRouter 구현 메모**
 
 - OpenRouter는 OpenAI 호환 API다. 전용 SDK 없이 `openai` 패키지에 `baseURL: "https://openrouter.ai/api/v1"` + `apiKey: OPENROUTER_API_KEY`를 주면 된다.
-- 모델 ID는 `벤더/모델` 형식이다 (`anthropic/claude-opus-5-5`, `google/gemini-...`, `openai/...`). 벤더 접두사가 빠지면 요청이 거부된다.
+- 모델 ID는 `벤더/모델` 형식이다 (`anthropic/claude-haiku-5.5`, `google/gemini-...`, `openai/...`). 벤더 접두사가 빠지면 요청이 거부된다.
 - 선택 헤더 `HTTP-Referer`, `X-Title`을 보내면 OpenRouter 대시보드에서 이 앱의 사용량·비용이 따로 집계된다.
-- **JSON 강제 방식이 다르다.** Anthropic은 `output_config.format`, OpenRouter는 OpenAI 호환 `response_format: { type: "json_schema", ... }`를 쓴다. 다만 OpenRouter 쪽 `json_schema` 지원 여부는 **모델마다 다르다** — 미지원 모델은 이 파라미터를 무시하거나 에러를 낸다.
-- 그래서 공통 안전망을 둔다: 응답 텍스트 JSON 파싱 → 실패하면 코드펜스를 벗겨 1회 재시도 → 그래도 실패하면 해당 기사를 `failed`로 기록. 스키마 검증(Zod)은 프로바이더와 무관하게 파싱 직후 한 번 돌린다.
+- **JSON 강제 방식이 다르다.** Anthropic은 `output_config.format`, OpenRouter는 OpenAI 호환 `response_format: { type: "json_schema", ... }`를 쓴다. 다만 OpenRouter의 `response_format`은 **소프트 선호**다 — 지원하는 엔드포인트가 있으면 그쪽으로 라우팅하지만, 하나도 없으면 파라미터를 조용히 버리고 모델이 산문으로 답한다. 같은 모델이라도 엔드포인트마다 지원 여부가 다르다 (기본 모델의 Bedrock·AWS 엔드포인트는 미지원).
+- 그래서 스키마 요청에는 `provider: { require_parameters: true }`를 함께 보내 라우팅을 고정하고, 조용한 무시를 **감지 가능한 오류**로 바꾼다.
+- 그 위에 공통 안전망을 둔다: 응답 텍스트 JSON 파싱 → 실패하면 코드펜스를 벗겨 복구 → 그래도 스키마 결과를 못 얻으면 **프롬프트로 JSON을 요청하는 모드로 1회 재시도**(이때는 라우팅 고정을 풀어 어디로든 가게 둔다) → 그래도 실패하면 해당 기사를 `failed`로 기록. 스키마 검증(Zod)은 프로바이더와 무관하게 파싱 직후 한 번 돌린다.
 
 **전환 규칙**
 
-- `LLM_PROVIDER`가 없으면 `anthropic`으로 동작한다.
+- `LLM_PROVIDER`가 없으면 `openrouter`로 동작한다.
 - 선택한 프로바이더의 키가 없으면 **앱 기동이 아니라 요약 단계에서** 오류를 남긴다. 키가 없어도 RSS 수집, 기존 기사 열람, Notion 저장은 전부 정상 동작해야 한다 (기사는 `failed`로 쌓이고 키를 넣은 뒤 재시도하면 된다).
 - 프로바이더를 바꿔도 이미 요약이 끝난 기사는 다시 호출하지 않는다.
 - 어떤 프로바이더·모델로 요약했는지 `articles.llm_model`에 기록해 두면 나중에 품질 비교가 쉬워진다.
@@ -252,7 +254,7 @@ Neon(PostgreSQL) + Drizzle ORM.
 | `summary_ko` | text | Claude 결과 |
 | `category_id` | integer FK → categories.id | ON DELETE 시 "기타"로 재지정 |
 | `category_reason` | text | 분류 근거 (디버깅용) |
-| `llm_model` | text | 요약에 쓴 프로바이더/모델 (예: `anthropic:claude-opus-5-5`) |
+| `llm_model` | text | 요약에 쓴 프로바이더/모델 (예: `openrouter:anthropic/claude-haiku-5.5`). 실패한 기사에도 남겨 어느 모델이 실패했는지 비교할 수 있게 한다 |
 | `status` | text NOT NULL DEFAULT 'pending' | `pending` / `enriched` / `failed` |
 | `error` | text | 실패 사유 |
 | `notion_page_id` | text | NULL이면 미저장 |
@@ -308,7 +310,7 @@ Neon(PostgreSQL) + Drizzle ORM.
 | 인증 | Clerk |
 | DB | Neon (PostgreSQL, serverless) |
 | ORM | Drizzle ORM + drizzle-kit |
-| LLM | 프로바이더 전환형 — Anthropic(`@anthropic-ai/sdk`) 또는 OpenRouter(`openai` SDK + `baseURL` 교체). 기본 `claude-opus-5-5` |
+| LLM | 프로바이더 전환형 — OpenRouter(`openai` SDK + `baseURL` 교체) 또는 Anthropic(`@anthropic-ai/sdk`). 기본 `anthropic/claude-haiku-5.5` |
 | RSS 파싱 | RSS 2.0 + Atom 모두 처리 |
 | Notion | `@notionhq/client` (Internal Integration Token) |
 | 배포 | 초기에는 로컬 `npm run dev`. Vercel 배포는 추후 선택 |
@@ -319,17 +321,17 @@ DATABASE_URL=                        # Neon connection string
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
 CLERK_SECRET_KEY=
 
-LLM_PROVIDER=anthropic               # anthropic | openrouter — 생략 시 anthropic
+LLM_PROVIDER=openrouter              # openrouter | anthropic — 생략 시 openrouter
+
+# LLM_PROVIDER=openrouter 일 때
+OPENROUTER_API_KEY=
+OPENROUTER_MODEL=anthropic/claude-haiku-5.5  # 선택, 기본값 동일
+OPENROUTER_APP_URL=http://localhost:3000     # 선택, HTTP-Referer 헤더
+OPENROUTER_APP_NAME=AI News Collector        # 선택, X-Title 헤더
 
 # LLM_PROVIDER=anthropic 일 때
 ANTHROPIC_API_KEY=
 ANTHROPIC_MODEL=claude-opus-5-5      # 선택, 기본값 동일
-
-# LLM_PROVIDER=openrouter 일 때
-OPENROUTER_API_KEY=
-OPENROUTER_MODEL=anthropic/claude-opus-5-5
-OPENROUTER_APP_URL=http://localhost:3000    # 선택, HTTP-Referer 헤더
-OPENROUTER_APP_NAME=AI News Collector       # 선택, X-Title 헤더
 
 NOTION_API_KEY=                      # internal integration token
 NOTION_DATABASE_ID=
@@ -359,12 +361,12 @@ NOTION_DATABASE_ID=
 
 ## 12. 열린 질문 / 추후
 
-- **모델 선택** — 기본값은 `claude-opus-5-5`. 기사 요약은 비교적 단순한 작업이라 `claude-haiku-5-5`로 내리면 비용이 크게 줄지만, 요약·분류 품질은 직접 비교해 봐야 안다. OpenRouter를 쓰면 키 하나로 여러 벤더 모델을 같은 프롬프트에 물려 비교할 수 있다 — 같은 기사 20건을 모델별로 돌려 보고 `ANTHROPIC_MODEL` / `OPENROUTER_MODEL` 기본값을 정한다.
-- **프로바이더별 JSON 강제** — OpenRouter에서 `json_schema`를 지원하지 않는 모델을 쓰게 되면 파싱 실패율이 올라갈 수 있다. 재시도 1회로 부족하면 프롬프트에 출력 예시를 넣는 쪽으로 보강한다.
+- **모델 선택** — *(결론)* 기본값을 OpenRouter + `anthropic/claude-haiku-5.5`로 정했다. 기사 요약은 RSS 한 문장~700자를 3~4문장으로 줄이는 단순한 작업이라 Opus급 추론이 필요 없고(그래서 `effort`도 `low`다), 입력 $0.10 / 출력 $0.50 per 1M으로 Opus 대비 40배 싸다. 품질이 아쉬우면 `OPENROUTER_MODEL` 한 줄로 `anthropic/claude-sonnet-5.5`($2/$10)에 올릴 수 있고, 그게 프로바이더 전환층을 둔 이유다. 같은 기사 20건을 모델별로 돌려 비교하는 일은 여전히 남아 있다.
+- **프로바이더별 JSON 강제** — *(부분 해결)* 라우팅을 `provider.require_parameters`로 고정하고, 스키마 결과를 못 얻은 **모든** 경우에 프롬프트 모드로 1회 재시도하도록 바꿨다 (§5 F2.1). 남은 것은 실측이다: 실패율이 여전히 높으면 프롬프트에 출력 예시를 넣는 쪽으로 보강한다.
 - **재분류 버튼** — 카테고리를 크게 손봤을 때 기존 기사를 다시 분류하는 기능. 현재 범위 밖이지만 설정 화면에 추가하기 쉽다.
 - **TechCrunch 본문 보강** — 현재 TechCrunch 요약은 한 문장짜리 RSS 발췌만 보고 쓴다. 원문
   페이지를 긁어오면 품질이 올라가지만 스크래핑은 §2에서 비목표로 둔 항목이다. 실제 요약을
   몇 개 읽어 보고 "이 정도면 충분한지" 판단한 뒤 결정한다.
 - **검색** — 제목·요약 전문 검색. 기사가 수백 건 쌓이면 필요해진다.
 - **소스 추가** — 피드가 늘어나면 `sources` 테이블 + 설정 화면에서 관리.
-- **Vercel 배포** — 배포하면 수집 요약 단계가 serverless 함수 실행 시간 제한에 걸릴 수 있다. 그때는 요약을 작은 배치로 쪼개 여러 번 호출하는 방식으로 바꾼다.
+- **Vercel 배포** — `after()`는 라우트의 max duration 안에서 돈다 (`maxDuration = 300`, fluid compute 기본값이자 Hobby 상한). 배치 30 / 동시성 6 / 데드라인 240초로 그 안에 맞췄지만 **로컬 `next dev`에는 제한이 없어 로컬 성공은 근거가 되지 못한다** — 배포 후 Functions 로그의 duration으로 실측해 수치를 확정한다. 넘치면 남는 기사는 `pending`으로 남아 다음 수집 때 이어진다.

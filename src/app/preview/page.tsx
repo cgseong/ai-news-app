@@ -23,12 +23,15 @@ function cover(from: string, to: string) {
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
+// Names match `src/db/seed.ts` exactly — a preview whose tabs read differently
+// from the real ones is a preview of the wrong screen.
 const CATEGORIES = [
-  { id: 1, name: "모델·연구", articleCount: 12 },
-  { id: 2, name: "제품·서비스", articleCount: 9 },
-  { id: 3, name: "산업·투자", articleCount: 7 },
-  { id: 4, name: "정책·규제", articleCount: 4 },
-  { id: 5, name: "기타", articleCount: 2 },
+  { id: 1, name: "모델/연구", articleCount: 12 },
+  { id: 2, name: "제품/출시", articleCount: 9 },
+  { id: 3, name: "기업/투자", articleCount: 7 },
+  { id: 4, name: "정책/규제", articleCount: 4 },
+  { id: 5, name: "인프라/칩", articleCount: 3 },
+  { id: 6, name: "기타", articleCount: 2 },
 ];
 
 const ARTICLES: FeedArticle[] = [
@@ -47,7 +50,7 @@ const ARTICLES: FeedArticle[] = [
     error: null,
     notionPageId: null,
     categoryId: 1,
-    categoryName: "모델·연구",
+    categoryName: "모델/연구",
   },
   {
     id: 2,
@@ -64,7 +67,7 @@ const ARTICLES: FeedArticle[] = [
     error: null,
     notionPageId: "1f2a3b4c5d6e7f8091a2b3c4d5e6f708",
     categoryId: 3,
-    categoryName: "산업·투자",
+    categoryName: "기업/투자",
   },
   {
     id: 3,
@@ -81,7 +84,7 @@ const ARTICLES: FeedArticle[] = [
     error: null,
     notionPageId: null,
     categoryId: 4,
-    categoryName: "정책·규제",
+    categoryName: "정책/규제",
   },
   {
     id: 4,
@@ -98,7 +101,7 @@ const ARTICLES: FeedArticle[] = [
     error: null,
     notionPageId: null,
     categoryId: 2,
-    categoryName: "제품·서비스",
+    categoryName: "제품/출시",
   },
   {
     id: 5,

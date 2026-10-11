@@ -6,6 +6,13 @@ import { articles } from "@/db/schema";
 import { failure, requireUserId, unauthorized } from "@/lib/api";
 import { enrichPending } from "@/lib/collect";
 
+/**
+ * `enrichPending()` drains the whole pending queue, not just this article, so
+ * this route needs the same `after()` budget as a collect. See the constant in
+ * `api/collect/route.ts`.
+ */
+export const maxDuration = 300;
+
 export async function POST(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },

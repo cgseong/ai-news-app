@@ -10,7 +10,7 @@ export type { EnrichResult, LlmProvider } from "./types";
  * calls `provider.enrich()` and never learns the difference (PRD §5 F2.1).
  */
 export function getLlmProvider(): LlmProvider {
-  const provider = process.env.LLM_PROVIDER?.trim().toLowerCase() || "anthropic";
+  const provider = process.env.LLM_PROVIDER?.trim().toLowerCase() || "openrouter";
 
   switch (provider) {
     case "anthropic":

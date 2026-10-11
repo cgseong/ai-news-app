@@ -79,7 +79,7 @@ Tailwind의 `shadow-md` 류는 쓰지 않는다.
 ├ main    (mx-auto max-w-6xl px-4 sm:px-6 py-8)
 │  ┌ 툴바   제목 + 부제 ──────────────── [뉴스 가져오기]
 │  ├ 알림   (있을 때만: notice / error)
-│  ├ 카테고리 바   [전체 34] [모델·연구 12] … [＋ 카테고리]
+│  ├ 카테고리 바   [전체 34] [모델/연구 12] … [＋ 카테고리]
 │  └ 카드 그리드   grid gap-5 sm:grid-cols-2 lg:grid-cols-3
 │      └ [더 보기]
 ```
@@ -139,7 +139,7 @@ h-4 w-24` 한 줄이 그 자리를 지킨다.
   <button className={active
     ? "rounded-full border border-accent bg-accent px-3.5 py-1.5 text-sm font-medium text-accent-contrast"
     : "rounded-full border border-border bg-surface px-3.5 py-1.5 text-sm text-muted transition-colors hover:border-accent/40 hover:text-accent"}>
-    모델·연구<span className="ml-1.5 text-xs opacity-70">12</span>
+    모델/연구<span className="ml-1.5 text-xs opacity-70">12</span>
   </button>
 
   {/* 끝에 붙는 추가 버튼 — 탭이 아니라 동작이므로 점선 테두리로 구분한다 */}
@@ -245,7 +245,7 @@ font-semibold`, 설명 `text-xs text-muted`. 카드 피드와 달리 그리드�
 ## 8. 구현 관례
 
 - **피드의 chrome은 `FeedChrome.tsx`에 둔다.** `/preview` 라우트가 같은 컴포넌트를 픽스처로
-  렌더하기 때문에, 툴바·카테고리 바를 `Feed.tsx`에 인라인하면 프리뷰가 실물과 어긋난다.
+  렌더하기 때문에, 툴바·카테고리 바를 호출부에 인라인하면 프리뷰가 실물과 어긋난다.
 - 디자인을 바꾸면 `/preview`에서 먼저 본다 — DB·로그인·LLM 키 없이 뜬다.
 - 클래스 순서: 레이아웃 → 박스 → 타이포 → 색 → 상태(hover/disabled). 조건부 스타일은
   템플릿 리터럴로 분기하되, 공통 클래스는 분기 밖에 둔다.
@@ -259,8 +259,9 @@ font-semibold`, 설명 `text-xs text-muted`. 카드 피드와 달리 그리드�
 - 헤더와 `metadata.title`은 아직 **"AI 뉴스 콜렉터"**다. 이 문서의 기준 명칭은
   **"AI 뉴스 수집기"**이므로, 다음 작업에서 `Header.tsx`·`layout.tsx`·`README.md`를 맞춰야 한다.
 - 카테고리 추가 버튼은 `CategoryBar`에만 있고, 이름 수정·삭제는 계속 `설정` 화면이 담당한다.
-- 화면은 `/dashboard` 하나다. `/`는 그리로 리다이렉트한다. 클라이언트 피드(`Feed.tsx`)와
-  `FeedChrome.tsx`는 지우지 않고 남겨뒀다 — 요약 진행 폴링이 필요한 분류 단계에서 되살린다.
-  그때까지 `FeedChrome`은 `/preview`만 쓰므로, 툴바·탭 디자인을 바꾸면 `CollectBar`·
-  `CategoryBar`와 같이 고쳐야 한다.
-- `원문 발췌`는 임시다. 분류·요약이 붙어 `summaryKo`가 채워지면 칩과 폴백 분기를 걷어낸다.
+- 화면은 `/dashboard` 하나다. `/`는 그리로 리다이렉트한다. 요약 진행 폴링은 `CollectBar`가
+  가져갔고 클라이언트 피드(`Feed.tsx`)는 지웠다. `FeedChrome.tsx`는 `/preview`만 쓰므로,
+  툴바·탭 디자인을 바꾸면 `CollectBar`·`CategoryBar`와 같이 고쳐야 한다.
+- `원문 발췌`는 **남겨둔다.** 분류·요약이 붙은 뒤에도 LLM 키가 없거나 요약이 아직 안 끝난
+  기사는 계속 생기고, 그때 카드를 읽을 수 있게 해 주는 것이 이 칩과 폴백 분기다
+  (PRD §10 "LLM 키가 없어도 읽기 경로는 살아 있다").

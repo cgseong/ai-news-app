@@ -9,8 +9,9 @@ Implemented, not yet run. Next.js 16 app: RSS collection → LLM translation/sum
 
 **Nothing has been executed against real services.** `npm run build`, `npm run lint`, and
 `tsc --noEmit` pass, and the RSS parser was verified against both live feeds. The database, Clerk,
-LLM, and Notion paths have never run — no credentials exist on this machine. Expect the first real
-run to surface integration problems; don't describe those paths as working.
+LLM, and Notion paths have never run — no credentials exist on this machine. The enrichment path
+is now wired end to end in code, which is not the same as having run: expect the first real run to
+surface integration problems, and don't describe those paths as working.
 
 ## Commands
 
@@ -41,16 +42,25 @@ There is no separate collector service.
 - `src/lib/collect.ts` — the two-phase run. `collectArticles()` only reads feeds and inserts new
   rows, so `POST /api/collect` answers in seconds. It keeps **only items published in the last
   `COLLECT_WINDOW_HOURS` (24)**; an item with no date is skipped, since the window cannot be
-  decided for it. `enrichPending()` does the LLM work and is **not wired up on this branch** —
-  classification lands later, so rows stay `pending` and `enrichPending()` will pick them all up
-  when the `after()` call comes back (see the TODO in `api/collect/route.ts`). Anything left
-  `pending` is picked up by the next run — there is no queue.
+  decided for it. `enrichPending()` does the LLM work and is kicked off from `after()` in
+  `POST /api/collect` — unconditionally, because "no new articles" is not "no pending backlog".
+  It drains the **pending queue**, not the run's own rows, so a run can report
+  `inserted: 3, enriched: 28`; `runId` only says where to report. `ENRICH_DEADLINE_MS` stops it
+  handing out work near the end of the `after()` budget, and anything left `pending` is picked up
+  by the next run — there is no queue. `finishedAt` belongs to phase 2: a run without one had its
+  enrichment pass killed.
+- `src/app/api/collect/route.ts` — `export const maxDuration = 300` (Vercel fluid default, Hobby
+  ceiling) is what `ENRICH_BATCH` and `ENRICH_DEADLINE_MS` are sized against. The `after()`
+  callback is wrapped in try/catch and calls `failRun()`: Next turns a throw in there into a
+  console line, so without it the run stays open with nothing to show.
 - `src/lib/llm/` — the provider swap. `getLlmProvider()` reads `LLM_PROVIDER` and returns the
-  Anthropic (`@anthropic-ai/sdk`) or OpenRouter (`openai` SDK with `baseURL` swapped)
-  implementation. **Both share one prompt** (`llm/prompt.ts`) — that is the whole point, so models
-  can be compared. JSON enforcement differs per provider (Anthropic `output_config.format`;
-  OpenRouter `response_format: json_schema`, which not every model there supports), so OpenRouter
-  falls back to a prompt-level JSON request plus a loose parse.
+  OpenRouter (`openai` SDK with `baseURL` swapped, **the default**, model
+  `anthropic/claude-haiku-5.5`) or Anthropic (`@anthropic-ai/sdk`) implementation.
+  **Both share one prompt** (`llm/prompt.ts`) — that is the whole point, so models can be
+  compared. JSON enforcement differs per provider (Anthropic `output_config.format`; OpenRouter
+  `response_format: json_schema` pinned with `provider.require_parameters`), and OpenRouter falls
+  back to a prompt-level JSON request plus a loose parse whenever the schema path fails to yield
+  a parseable result — not only on a particular status code.
 - `src/db/` — Drizzle + Neon, three tables (`articles`, `categories`, `runs`). `db` is a lazy
   Proxy: importing it never throws, so a missing `DATABASE_URL` surfaces on the first query
   instead of at build time.
@@ -62,9 +72,9 @@ There is no separate collector service.
   POSTs `/api/collect` then `router.refresh()`). Its DB reads are request-time, so they sit
   behind `<Suspense>`; with `cacheComponents` the toolbar and the skeleton are the static shell,
   which is why the status-line count is its own boundary with its own `countArticles()` query —
-  the button must be pressable before the card list has been read. `/` redirects here; the
-  client `Feed` and `FeedChrome` stay in the tree (only `/preview` renders the latter) because
-  classification needs the pending poll back.
+  the button must be pressable before the card list has been read. `CollectBar` also owns the
+  `pending-count` poll that fills cards in as summaries land. `/` redirects here; `FeedChrome`
+  stays in the tree for `/preview` only.
 - `proxy.ts` — Clerk route protection. Next.js 16 renamed `middleware.ts` to `proxy.ts`.
 
 ### Invariants worth keeping
@@ -125,6 +135,19 @@ Imports use `@/*` → `./src/*`.
 - **TechCrunch's feed carries no body and no images** — one `description` sentence per item. The
   Verge carries ~700 characters and an image. Summary quality differs between sources because of
   it, and the fix (scraping) is a non-goal in `PRD.md` §2.
+- **OpenRouter's `response_format` is a soft preference.** If no endpoint behind the model
+  supports structured outputs, OpenRouter **drops the parameter silently** and the model answers
+  in prose — no error to catch. Endpoint support varies *within one model*: four of the ten
+  endpoints for `anthropic/claude-haiku-5.5` (Bedrock, Claude on AWS) do not support it. Pin the
+  routing with `provider: { require_parameters: true }` so the mismatch becomes a status you can
+  detect, and trigger the prompt-mode fallback on any failure to get a parseable result, not on a
+  status code alone.
+- **`after()` has no time limit under `next dev`.** It gets the route's max duration, which is
+  unbounded locally and 300s on Vercel fluid compute (Hobby's ceiling). A pass that finishes
+  locally proves nothing about production — measure it there, and size `ENRICH_BATCH` /
+  `ENRICH_CONCURRENCY` / `ENRICH_DEADLINE_MS` against the deployed number.
+- **Next swallows exceptions thrown inside `after()`** into a `console.error` and nothing else.
+  Anything you want to survive has to be written to the DB by your own catch.
 - **`npm audit` reports 5 high findings** in dev-only transitive deps (`eslint-config-next` →
   `braces`, `drizzle-kit` → `esbuild`). `audit fix --force` downgrades those tools to ancient
   majors; leave them.

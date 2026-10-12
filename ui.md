@@ -82,6 +82,7 @@ Tailwind의 `shadow-md` 류는 쓰지 않는다.
 │  ├ 카테고리 바   [전체 34] [모델/연구 12] … [＋ 카테고리]
 │  └ 카드 그리드   grid gap-5 sm:grid-cols-2 lg:grid-cols-3
 │      └ [더 보기]
+└ Footer  (border-t, bg-surface, 한 줄 저작권)
 ```
 
 - 폭: `max-w-6xl`(72rem) 고정. 그 이상 넓히지 않는다.
@@ -100,7 +101,18 @@ Tailwind의 `shadow-md` 류는 쓰지 않는다.
 UserButton`. 링크는 `text-muted hover:text-foreground`. 헤더에 동작 버튼을 두지 않는다 —
 수집은 대시보드 툴바의 일이다.
 
-### 5.2 툴바 (`CollectBar.tsx`)
+### 5.2 Footer (`src/components/Footer.tsx`)
+Header를 위아래로 뒤집은 짝이다. `border-t border-border bg-surface`에 같은 `max-w-6xl`
+컨테이너(`px-4 py-6 sm:px-6`), 글자는 메타 스타일 `text-xs text-muted`로 가운데 정렬.
+한 줄짜리 저작권 표기가 전부이고 **링크도 동작도 두지 않는다** — 나가는 길은 헤더가 담당한다.
+
+연도는 적어 둔 값이다. `new Date()`로 구하면 `cacheComponents`에서 루트 레이아웃이 통째로
+동적으로 바뀌므로, 해가 바뀌면 손으로 고친다.
+
+`body`가 `flex min-h-full flex-col`이고 `main`이 `flex-1`이라 내용이 짧아도 푸터는 화면
+아래에 붙는다. 루트 레이아웃에 있으므로 `/sign-in`과 `/preview`에도 함께 나온다.
+
+### 5.3 툴바 (`CollectBar.tsx`)
 ```tsx
 <div className="flex flex-wrap items-end justify-between gap-3">
   <div>
@@ -125,7 +137,7 @@ h-4 w-24` 한 줄이 그 자리를 지킨다.
 
 `FeedChrome.tsx`의 `FeedToolbar`는 같은 모양의 콜백 버전으로, 지금은 `/preview`만 쓴다.
 
-### 5.3 카테고리 바 (`FeedChrome.tsx` → `CategoryTabs`)
+### 5.4 카테고리 바 (`FeedChrome.tsx` → `CategoryTabs`)
 
 카드 목록 **바로 위**, 알림 영역 아래에 놓인다. 한 줄에 다 안 들어가면 `flex-wrap`으로
 자연스럽게 다음 줄로 넘어간다(가로 스크롤 금지).
@@ -166,7 +178,7 @@ h-4 w-24` 한 줄이 그 자리를 지킨다.
   이름/힌트 수정과 삭제는 계속 `설정` 화면이 담당한다.
 - `기타`(fallback)는 지우거나 이름을 바꿀 수 없다. 추가 UI에서도 같은 이름을 못 쓰게 막는다.
 
-### 5.4 기사 카드 (`ArticleCard.tsx`)
+### 5.5 기사 카드 (`ArticleCard.tsx`)
 
 ```tsx
 <article className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-surface
@@ -202,7 +214,7 @@ h-4 w-24` 한 줄이 그 자리를 지킨다.
 
 진행 중 버튼은 `disabled:opacity-50` + 라벨 교체(`저장 중…`, `가져오는 중…`). 스피너는 쓰지 않는다.
 
-### 5.5 설정 화면 (`Settings.tsx`)
+### 5.6 설정 화면 (`Settings.tsx`)
 `rounded-xl border border-border bg-surface p-5` 패널을 세로로 쌓는다. 제목 `text-sm
 font-semibold`, 설명 `text-xs text-muted`. 카드 피드와 달리 그리드를 쓰지 않는다.
 
